@@ -4,38 +4,78 @@ import pymysql
 conn = pymysql.connect(host='127.0.0.1',
                        user='root',
                        password='')
-tabler = 'create table userdata (id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, nick varchar(40) NOT NULL, passwd varchar(40) NOT NULL);'
-inserter = "INSERT INTO userdata (nick, passwd) VALUES(%s, %s)"
+def isBlank (myString):
+    if myString and myString.strip():
+        return False
+    return True
 
+tabler = 'create table userdata (id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, nick varchar(40) NOT NULL, passwd varchar(40) NOT NULL, balance SMALLINT UNSIGNED NOT NULL);'
+inserter = "INSERT INTO userdata (nick, passwd, balance) VALUES(%s, %s, 1000)"
+checker = "SELECT * FROM userdata WHERE nick = %s and passwd = %s;"
+checkNick = "SELECT * FROM userdata WHERE nick = %s"
+checkPasswd = "SELECT * FROM userdata WHERE passwd = %s;"
+minusPoints = "UPDATE userdata SET balance = balance - %s WHERE nick = %s"
+plusPoints = "UPDATE userdata SET balance = balance + %s WHERE nick = %s"
+money = "SELECT balance FROM userdata WHERE nick = %s"
 
-nick = input('Введите Ваш ник: ')
 while True:
+    nick = input('Введите Ваш ник: ')
     passwd = input('Введите Ваш пароль: ')
-    check = input('Повторите Ваш пароль: ')
-    if passwd==check:
+    if passwd and nick:
         if conn.cursor().execute('create database IF NOT EXISTS eonia'):
             conn.select_db('Eonia')
             conn.cursor().execute(tabler)
             conn.cursor().execute(inserter,(nick,passwd))
             conn.commit()
             print(f'Регистрация пользователя {nick} прошла успешно!')
-            conn.close()
+            #close connection!
             break
         else:
-            # regChoose = input('Вы хотите войти под существующем именем или зарегистрироваться? (log/reg)')
-            # if regChoose.lower()=='log':
-            #     pass
-            # elif regChoose.lower()=='reg':
-            #     pass
-            # else:
-            #     print('Такой опции нет. Повторите попытку.')
-            print('DB already exists')
-            break
+            conn.select_db('Eonia')        
+            if conn.cursor().execute(checker,(nick,passwd)):
+                print(f'\nДобро пожаловать, {nick}!')
+                #close connection!
+                break
+            else:
+                if conn.cursor().execute(checkNick,(nick)) == False:
+                    reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N)').lower()
+                    if reg == 'y':
+                        while True:
+                            passwd = input('Введите Ваш пароль: ')
+                            check = input('Подтвердите Ваш пароль: ')
+                            if passwd==check:
+                                if isBlank(passwd):
+                                    print('Пароли не могут быть пустыми. Повторите попытку.')
+                                    continue
+                                elif isBlank(checkPasswd):
+                                    print('\nПароли не могут быть пустыми. Повторите попытку.\n')
+                                    continue
+                                else:
+                                    conn.cursor().execute(inserter,(nick,passwd))
+                                    print(f'Регистрация пользователя {nick} прошла успешно!')
+                                    conn.commit()
+                                    break
+                            elif passwd!=check:
+                                print('Пароли не совпадают. Повторите попытку.')
+                                continue
+            
+                            else:
+                                print('Неопознанная ошибка.')
+                                raise SystemError
+                    elif reg == 'n':
+                        print('Хорошо. Возвращаемся в главное меню.')
+                        continue
+                    #close connection!
+                    break
+                            
+                elif conn.cursor().execute(checkPasswd,(passwd)) == False:
+                    print(f'Неверный пароль для пользователя {nick}. Повторите попытку.')
+                    continue
     else:
-        print('Пароли не совпадают. Повторите попытку.')
+        print('Пароли не могут быть пустыми. Повторите попытку.')
         continue
 points = 1000 #Вынести в бд
-print('\nЕсли вы хотите узнать правила, напишите "rules" на следующем шаге.')
+print('\nЕсли вы хотите узнать правила или ваш баланс, напишите "rules" или "balance" соответственно на следующем шаге.')
 while points > 0:
   try:
     if points <= 0:
@@ -61,6 +101,9 @@ while points > 0:
       elif userChoice == 'exit':
           print('Спасибо за игру. Будем рады видеть Вас снова!')
           break
+      elif userChoice == 'balance':
+        print(f'Ваш баланс: {points}')
+        continue
       elif userChoice not in ('б','у','м','exit'):
         print('\nТакого режима нет. Повторите попытку.')
         continue
@@ -145,19 +188,17 @@ while points > 0:
           elif userCoin == coin:
             print("Верно!")
             print('Вы выиграли: ' + str(bet))
-            points += bet
-            print("\nВаш текущий баланс: " + str(points))
+            conn.cursor().execute(plusPoints,(bet,nick))      #This works!!!!!!!!
+            conn.commit()
+            # conn.close()
+            conn.cursor().execute(money,(nick))               #Returns 1 - need to fix
           else:
             print("Не повезло...")
             print('Вы проиграли: ' + str(bet))
-            points -= bet
-            print("\nВаш текущий баланс: " + str(points))
-            # cont = input("\nХотите продолжить?(Y/N)").lower()
-            # if cont == "y":
-            #   continue
-            # else:
-            #   print('Будем рады видеть вас снова!')
-            #   break
+            conn.cursor().execute(minusPoints,(bet,nick))     #This works!!!!!!!!
+            conn.commit()
+            # conn.close()
+            print(conn.cursor().execute(money,(nick)))        #Returns 1 - need to fix
         elif userChoice == 'у':
           number = random.randint(1, 100)
           secret_number = random.randint(1,100)
@@ -223,14 +264,5 @@ while points > 0:
           else:
             print('Неверный ввод, повторите попытку!')
             continue
-          # cont = input('\nХотите ли Вы продолжить игру?(y/n): ').lower()
-          # if cont == 'y':
-          #   continue
-          # elif cont == 'n':
-          #   print('Спасибо за игру.')
-          # else:
-          #   print('Неверный ввод, повторите попытку.')
-        # elif userChoice not in ('б','у','м','exit'):
-        #   print('\nТакого режима нет. Повторите попытку.\n')
   except Exception:
     print('Возникла ошибка. Повторите попытку.')
