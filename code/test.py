@@ -4,6 +4,10 @@ import pymysql
 conn = pymysql.connect(host='127.0.0.1',
                        user='root',
                        password='')
+tabler = 'create table userdata (id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, nick varchar(40) NOT NULL, passwd varchar(40) NOT NULL);'
+inserter = "INSERT INTO userdata (nick, passwd) VALUES(%s, %s)"
+
+
 nick = input('Введите Ваш ник: ')
 while True:
     passwd = input('Введите Ваш пароль: ')
@@ -11,11 +15,21 @@ while True:
     if passwd==check:
         if conn.cursor().execute('create database IF NOT EXISTS eonia'):
             conn.select_db('Eonia')
-            conn.cursor().execute('create table userdata (id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, nick varchar(40) NOT NULL, passwd varchar(40) NOT NULL);')
-            conn.cursor().execute(f'INSERT INTO userdata (nick,passwd) VALUES ({nick},{passwd});')
+            conn.cursor().execute(tabler)
+            conn.cursor().execute(inserter,(nick,passwd))
+            conn.commit()
+            print(f'Регистрация пользователя {nick} прошла успешно!')
+            conn.close()
             break
         else:
-            print('DB already ex')
+            # regChoose = input('Вы хотите войти под существующем именем или зарегистрироваться? (log/reg)')
+            # if regChoose.lower()=='log':
+            #     pass
+            # elif regChoose.lower()=='reg':
+            #     pass
+            # else:
+            #     print('Такой опции нет. Повторите попытку.')
+            print('DB already exists')
             break
     else:
         print('Пароли не совпадают. Повторите попытку.')
