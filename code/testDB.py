@@ -2,9 +2,10 @@
 import random
 import pymysql
 from pymysql.cursors import Cursor
-conn = pymysql.connect(host='35.157.16.43',
-                       user='sql11395308',
-                       password='XuFVWJQ8TR')
+conn = pymysql.connect(host='sql5.freemysqlhosting.net',
+                       user='sql5395376',
+                       password='XNkiznZYb6',
+                       db='sql5395376')
 def isBlank (myString):
     if myString and myString.strip():
         return False
@@ -22,16 +23,15 @@ while True:
     nick = input('Введите Ваш ник: ')
     passwd = input('Введите Ваш пароль: ')
     if passwd and nick:
-        if conn.cursor().execute('create database IF NOT EXISTS eonia'):
-            conn.select_db('Eonia')
-            conn.cursor().execute(tabler)
+        if not conn.cursor().execute(checker,(nick,passwd)):
+            conn.select_db('sql5395376')
             conn.cursor().execute(inserter,(nick,passwd))
             conn.commit()
             print(f'Регистрация пользователя {nick} прошла успешно!')
             #close connection!
             break
         else:
-            conn.select_db('Eonia')        
+            conn.select_db('sql5395376')        
             if conn.cursor().execute(checker,(nick,passwd)):
                 print(f'\nДобро пожаловать, {nick}!')
                 #close connection!
