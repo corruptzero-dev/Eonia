@@ -2,7 +2,7 @@
 import random
 import pymysql
 from pymysql.cursors import Cursor
-conn = pymysql.connect(host='127.0.0.1',
+conn = pymysql.connect(host='localhost',
                        user='root',
                        password='')
 def isBlank (myString):
