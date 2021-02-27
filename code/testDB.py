@@ -15,6 +15,13 @@ def isBlank (myString):
 
 tabler = 'create table userdata (id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, nick varchar(40) NOT NULL, passwd varchar(40) NOT NULL, balance SMALLINT UNSIGNED NOT NULL);'
 inserter = "INSERT INTO userdata (nick, passwd, balance) VALUES(%s, %s, 1000)"
+topInserter = "INSERT INTO topusers (nick, balance) VALUES(%s, %s)"
+topSelector = "SELECT COUNT(DISTINCT nick) FROM topusers"
+topChecker = "SELECT * FROM topusers WHERE nick = %s"
+topBalance = "SELECT balance FROM topusers WHERE nick = %s"
+updateTopBalance = "UPDATE topusers SET balance = %s WHERE nick = %s"
+getRating = "SELECT nick,balance FROM topusers ORDER BY balance DESC"
+deleteRating = "DELETE FROM topusers WHERE nick = %s"
 checker = "SELECT * FROM userdata WHERE nick = %s and passwd = %s;"
 checkNick = "SELECT * FROM userdata WHERE nick = %s"
 checkPasswd = "SELECT * FROM userdata WHERE passwd = %s;"
@@ -24,68 +31,98 @@ money = "SELECT balance FROM userdata WHERE nick = %s"
 while True:
     nick = input('Введите Ваш ник: ').replace(' ', '')
     passwd = input('Введите Ваш пароль: ').replace(' ', '')
-    if passwd and nick:
-        if not conn.cursor().execute(checker,(nick,passwd)):
-            conn.select_db('sql5395376')
-            conn.cursor().execute(inserter,(nick,passwd))
-            conn.commit()
-            print(f'Регистрация пользователя {nick} прошла успешно!')
-            #close connection!
-            break
-        else:
-            conn.select_db('sql5395376')        
-            if conn.cursor().execute(checker,(nick,passwd)):
-              with conn.cursor() as cur:
+    if conn.cursor().execute(checkNick,(nick)) == False:
+        reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N)').lower()
+        if reg == 'y':
+            while True:
+                passwd = input('Введите Ваш пароль: ')
+                check = input('Подтвердите Ваш пароль: ')
+                if passwd==check:
+                    if isBlank(passwd):
+                        print('Пароли не могут быть пустыми. Повторите попытку.')
+                        continue
+                    elif isBlank(checkPasswd):
+                        print('\nПароли не могут быть пустыми. Повторите попытку.\n')
+                        continue
+                    else:
+                        conn.cursor().execute(inserter,(nick,passwd))
+                        print(f'Регистрация пользователя {nick} прошла успешно!')
+                        conn.commit()
+                        break
+                elif passwd!=check:
+                    print('Пароли не совпадают. Повторите попытку.')
+                    continue
+                else:
+                    print('Неопознанная ошибка.')
+                    raise SystemError
+        elif reg == 'n':
+            print('Хорошо. Возвращаемся в главное меню.')
+            continue           
+    else:
+        conn.select_db('sql5395376')        
+        if conn.cursor().execute(checker,(nick,passwd)):
+            with conn.cursor() as cur:
                 cur.execute(money, nick)
                 balance = cur.fetchone()
                 print(f'\nДобро пожаловать, {nick}!\nВаш баланс: {balance[0]}')
                 #close connection!
                 break
-            else:
-                if conn.cursor().execute(checkNick,(nick)) == False:
-                    reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N)').lower()
-                    if reg == 'y':
-                        while True:
-                            passwd = input('Введите Ваш пароль: ')
-                            check = input('Подтвердите Ваш пароль: ')
-                            if passwd==check:
-                                if isBlank(passwd):
-                                    print('Пароли не могут быть пустыми. Повторите попытку.')
-                                    continue
-                                elif isBlank(checkPasswd):
-                                    print('\nПароли не могут быть пустыми. Повторите попытку.\n')
-                                    continue
-                                else:
-                                    conn.cursor().execute(inserter,(nick,passwd))
-                                    print(f'Регистрация пользователя {nick} прошла успешно!')
-                                    conn.commit()
-                                    break
-                            elif passwd!=check:
-                                print('Пароли не совпадают. Повторите попытку.')
-                                continue
-            
-                            else:
-                                print('Неопознанная ошибка.')
-                                raise SystemError
-                    elif reg == 'n':
-                        print('Хорошо. Возвращаемся в главное меню.')
-                        continue
-                    #close connection!
-                    break
-                            
-                elif conn.cursor().execute(checkPasswd,(passwd)) == False:
-                    print(f'Неверный пароль для пользователя {nick}. Повторите попытку.')
-                    continue
-    else:
-        print('Пароль и/или ник не могут быть пустыми. Повторите попытку.')
-        continue
-print('\nЕсли вы хотите узнать правила или ваш баланс, напишите "rules" или "balance" соответственно на следующем шаге.')
+        else:
+            print(f'Неверный пароль для пользователя {nick}. Повторите попытку.')
+            continue
+
+print('\nЕсли вы хотите узнать правила или ваш баланс, напишите "rules" или "balance" соответственно на следующем шаге.\nДля вызова рейтинга, напишите "rating".')
 
 # points = 1000     -- NO MORE NEED TO USE GLOBAL VARIABLE points! 
 
 with conn.cursor() as cur:                      
   cur.execute(money,nick)
   balance = cur.fetchone()
+  if balance[0] < 10000: # Реализовано исключение пользователя из таблицы рейтинга.
+    if cur.execute(topChecker,nick):
+      cur.execute(deleteRating,nick)
+      conn.commit()
+      print(f'\n{nick}, Ваш баланс составляет {balance[0]} (<10000). Ваш ник был удален из таблицы рейтинга.')
+      print('Если вы захотите вернуть Ваш ник в топ, Ваш баланс должен быть больше, чем 10000.')
+    else:
+      pass
+  else:
+    pass
+  if balance[0] >= 10000:
+    if not cur.execute(topChecker,(nick)):
+      while True:
+        print(f'\n{nick}, Ваш баланс составляет {balance[0]}.\nЭто означает, что для Вас доступно включение Вашего ника в таблицу рейтинга.')
+        top = input('Хотите ли вы оставить свое имя в таблице рейтинга? (Y/N): ').lower()
+        if top == 'y':
+          cur.execute(topInserter,(nick, balance[0]))
+          conn.commit()
+          cur.execute(topSelector)
+          count = cur.fetchone()
+          print(f'\nБольшое спасибо за участие. Ник "{nick}" был занесен в таблицу рейтинга.')
+          print(f'Сейчас в таблице рейтинга {count[0]} пользователя (-ей). В том числе и Вы :)\nМожете продолжать игру.')
+          break
+        elif top == 'n':
+          print('\nХорошо, спасибо. Можете продолжать игру.')
+          break
+        else:
+          print('Неизвестная команда, повторите попытку.')
+    else:
+      cur.execute(topBalance,nick)
+      rateBalance = cur.fetchone()
+      if rateBalance[0] < balance[0]:
+        newBalance = balance[0]
+        cur.execute(updateTopBalance,(newBalance,nick))
+        conn.commit()
+        print(f'\n{nick}, Ваша запись в таблице рейтинга была обновлена ({rateBalance[0]} => {newBalance}).')
+      elif rateBalance[0] > balance[0]:
+        newBalance = balance[0]
+        cur.execute(updateTopBalance,(newBalance,nick))
+        conn.commit()
+        print(f'\n{nick}, Ваша запись в таблице рейтинга была обновлена ({rateBalance[0]} => {newBalance}).')
+      else:
+        pass
+  else:
+    pass
   while balance[0] > 0:
     with conn.cursor() as cur:
       cur.execute(money,nick)
@@ -106,6 +143,25 @@ with conn.cursor() as cur:
                   Чтобы выйти из игры, в любой момент напишите "exit".''')
         print('                                   Желаем Удачи!\n')
         continue
+      elif userChoice == 'rating':
+        cur.execute(getRating)
+        rating = cur.fetchall()
+        try:
+          firstPlace = rating[0]
+          print(f'1 место: {firstPlace[0]} - {firstPlace[1]}')
+        except IndexError:
+          print('1 место: пусто.')
+        try:
+          secondPlace = rating[1]
+          print(f'2 место: {secondPlace[0]} - {secondPlace[1]}')
+        except IndexError:
+          print('2 место: пусто.')
+        try:
+          thirdPlace = rating[2]
+          print(f'3 место: {thirdPlace[0]} - {thirdPlace[1]}')
+        except IndexError:
+          print('3 место: пусто.')
+        continue
       elif userChoice == 'exit':
           print(f'Производится выход из аккаунта {nick}...')
           conn.close()
@@ -118,7 +174,7 @@ with conn.cursor() as cur:
         balance = cur.fetchone()
         print(f'Ваш баланс: {balance[0]}')
         continue
-      elif userChoice not in ('б','у','м','exit','logout'):
+      elif userChoice not in ('б','у','м','exit','rating'):
         print('\nТакого режима нет. Повторите попытку.')
         continue
       bet = int(input('Введите ставку: '))
@@ -218,31 +274,35 @@ with conn.cursor() as cur:
             print('Неверный ввод. Повторите попытку.\n')
             continue
         elif userChoice == "м":
-          userCoin = int(input("\nВыберите: Орёл или Решка\nОрел - 0, Решка - 1: "))
-          coin = random.randint(0, 1)
-          if userCoin not in (0, 1):
-            print('\nНеправильно введены данные!')
+          try:
+            userCoin = int(input("\nВыберите: Орёл или Решка\nОрел - 0, Решка - 1: "))
+            coin = random.randint(0, 1)
+            if userCoin not in (0, 1):
+              print('\nНеверно введены данные!')
+              continue
+            elif userCoin == coin:
+              print("Верно!")
+              print(f'Вы выиграли: {bet}')
+              winCoin = bet
+              cur.execute(updatePoints,(winCoin,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              # conn.close()
+              print(f'Ваш баланс: {balance[0]}')
+            else:
+              print("Не повезло...")
+              print(f'Вы проиграли: {bet}')
+              loseCoin = -(bet)
+              cur.execute(updatePoints,(loseCoin,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              # conn.close()
+              print(f'Ваш баланс: {balance[0]}')
+          except ValueError:
+            print('\nНеверно введены данные!')
             continue
-          elif userCoin == coin:
-            print("Верно!")
-            print(f'Вы выиграли: {bet}')
-            winCoin = bet
-            cur.execute(updatePoints,(winCoin,nick))      #This works!!!!!!!!
-            conn.commit()
-            cur.execute(money,nick)
-            balance = cur.fetchone()
-            # conn.close()
-            print(f'Ваш баланс: {balance[0]}')
-          else:
-            print("Не повезло...")
-            print(f'Вы проиграли: {bet}')
-            loseCoin = -(bet)
-            cur.execute(updatePoints,(loseCoin,nick))      #This works!!!!!!!!
-            conn.commit()
-            cur.execute(money,nick)
-            balance = cur.fetchone()
-            # conn.close()
-            print(f'Ваш баланс: {balance[0]}')
         elif userChoice == 'у':
           number = random.randint(1, 100)
           secret_number = random.randint(1,100)
@@ -354,3 +414,5 @@ with conn.cursor() as cur:
     pass
   # except Exception:
   #   pass
+
+ #Монетка реализовать опечатку в выборе стороны
