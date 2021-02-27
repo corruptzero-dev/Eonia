@@ -82,7 +82,7 @@ def getBalance():
     balance = cur.fetchone()
     print(f'Ваш баланс: {balance[0]}')
     return balance[0]
-points = 1000
+points = 10000
 while points > 0:
   # try:
     if points <= 0:
