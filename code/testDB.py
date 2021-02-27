@@ -145,9 +145,9 @@ with conn.cursor() as cur:
               continue
             else:
               print('Верно!\n')
-              print('Вы выиграли: ' + str(bet*0.2))
+              print(f'Вы выиграли: {bet*0.2}')
               win1 = bet*0.2
-              print('Бомба была в ячейке: ' + str(bomb) + '\n')
+              print(f'Бомба была в ячейке: {bomb} \n')
               cur.execute(updatePoints,(win1,nick))      #This works!!!!!!!!
               conn.commit()
               cur.execute(money,nick)
@@ -161,7 +161,7 @@ with conn.cursor() as cur:
                   if userBomb2 == bomb2:
                     print('Вы взорвались!\n')
                     lose2 = -(bet*1.2)
-                    print('Вы проиграли: '+ str(bet*1.2))
+                    print(f'Вы проиграли: {bet*1.2}')
                     cur.execute(updatePoints,(lose2,nick))      #This works!!!!!!!!
                     conn.commit()
                     cur.execute(money,nick)
@@ -169,9 +169,9 @@ with conn.cursor() as cur:
                     print(f'Ваш баланс: {balance[0]}')
                     continue
                   else:
-                    print('Вы выиграли: ' + str(bet*0.3))
+                    print(f'Вы выиграли: {bet*0.3}')
                     win2 = bet*0.3
-                    print('Бомба была в ячейке: '+ str(bomb2) + '\n')
+                    print(f'Бомба была в ячейке: {bomb2} \n')
                     cur.execute(updatePoints,(win2,nick))      #This works!!!!!!!!
                     conn.commit()
                     cur.execute(money,nick)
@@ -185,7 +185,7 @@ with conn.cursor() as cur:
                       if userBomb3 == bomb3:
                         print('Вы взорвались!\n')
                         lose3 = -(bet*1.5)
-                        print('Вы проиграли: '+ str(bet*1.5))
+                        print(f'Вы проиграли: {bet*1.5}')
                         cur.execute(updatePoints,(lose3,nick))      #This works!!!!!!!!
                         conn.commit()
                         cur.execute(money,nick)
@@ -193,8 +193,8 @@ with conn.cursor() as cur:
                         print(f'Ваш баланс: {balance[0]}')
                         continue
                       else:
-                        print('Вы выиграли: ' + str(bet*2.5))
-                        print('Бомба была в ячейке: ' + str(bomb) + '\n')
+                        print(f'Вы выиграли: {bet*2.5}')
+                        print(f'Бомба была в ячейке: {bomb3} \n')
                         print('Победитель!')
                         win3 = bet*2.5
                         cur.execute(updatePoints,(win3,nick))      #This works!!!!!!!!
