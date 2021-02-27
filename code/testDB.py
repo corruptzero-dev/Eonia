@@ -1,6 +1,8 @@
 # Тестовая версия
 import random
 import pymysql
+import time
+
 from pymysql.cursors import Cursor
 conn = pymysql.connect(host='sql5.freemysqlhosting.net',
                        user='sql5395376',
@@ -20,8 +22,8 @@ updatePoints = "UPDATE userdata SET balance = balance + %s WHERE nick = %s"
 money = "SELECT balance FROM userdata WHERE nick = %s"
 
 while True:
-    nick = input('Введите Ваш ник: ')
-    passwd = input('Введите Ваш пароль: ')
+    nick = input('Введите Ваш ник: ').replace(' ', '')
+    passwd = input('Введите Ваш пароль: ').replace(' ', '')
     if passwd and nick:
         if not conn.cursor().execute(checker,(nick,passwd)):
             conn.select_db('sql5395376')
@@ -33,7 +35,10 @@ while True:
         else:
             conn.select_db('sql5395376')        
             if conn.cursor().execute(checker,(nick,passwd)):
-                print(f'\nДобро пожаловать, {nick}!')
+              with conn.cursor() as cur:
+                cur.execute(money, nick)
+                balance = cur.fetchone()
+                print(f'\nДобро пожаловать, {nick}!\nВаш баланс: {balance[0]}')
                 #close connection!
                 break
             else:
@@ -76,19 +81,15 @@ while True:
         continue
 print('\nЕсли вы хотите узнать правила или ваш баланс, напишите "rules" или "balance" соответственно на следующем шаге.')
 
-def getBalance():
-  with conn.cursor() as cur:                      
-    cur.execute(money,nick)
-    balance = cur.fetchone()
-    print(f'Ваш баланс: {balance[0]}')
-    return balance[0]
-points = 1000
-while points > 0:
-  # try:
-    if points <= 0:
-      print('У вас закончились средства! Перезапустите программу.')
-      break
-    else:
+# points = 1000     -- NO MORE NEED TO USE GLOBAL VARIABLE points! 
+
+with conn.cursor() as cur:                      
+  cur.execute(money,nick)
+  balance = cur.fetchone()
+  while balance[0] > 0:
+    with conn.cursor() as cur:
+      cur.execute(money,nick)
+      balance = cur.fetchone()
       userChoice = input('\nВыберите, в какой режим вы хотите сыграть:\nБомбы, Угадай число, Монетка(Б/У/М): ').lower()
       if userChoice == 'rules':
         print('''Правила:
@@ -106,16 +107,22 @@ while points > 0:
         print('                                   Желаем Удачи!\n')
         continue
       elif userChoice == 'exit':
-          print('Спасибо за игру. Будем рады видеть Вас снова!')
+          print(f'Производится выход из аккаунта {nick}...')
+          conn.close()
+          time.sleep(1)
+          print('____________________________')
+          print('Будем рады видеть Вас снова.')
           break
       elif userChoice == 'balance':
-        getBalance()
+        cur.execute(money,nick)
+        balance = cur.fetchone()
+        print(f'Ваш баланс: {balance[0]}')
         continue
-      elif userChoice not in ('б','у','м','exit'):
+      elif userChoice not in ('б','у','м','exit','logout'):
         print('\nТакого режима нет. Повторите попытку.')
         continue
       bet = int(input('Введите ставку: '))
-      if bet > points:
+      if bet > balance[0]:
         print('Недостаточно средств. Повторите попытку.\n')
         continue
       elif bet <= 0:
@@ -128,27 +135,24 @@ while points > 0:
           if int(userBomb) in range (1,6):
             if userBomb == bomb:
               print('Вы взорвались!\n')
-              print('Вы проиграли: ' + str(bet))
+              print(f'Вы проиграли: {bet}')
               lose1 = -bet
-              conn.cursor().execute(updatePoints,(lose1,nick))      #This works!!!!!!!!
+              cur.execute(updatePoints,(lose1,nick))      #This works!!!!!!!!
               conn.commit()
-              with conn.cursor() as cur:                      #FIXED!!!!
-                cur.execute(money,nick)
-                balance = cur.fetchone()
-                print(f'Ваш баланс: {balance[0]}')
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Ваш баланс: {balance[0]}')
               continue
             else:
               print('Верно!\n')
               print('Вы выиграли: ' + str(bet*0.2))
-              # points += bet*0.2
               win1 = bet*0.2
               print('Бомба была в ячейке: ' + str(bomb) + '\n')
-              conn.cursor().execute(updatePoints,(win1,nick))      #This works!!!!!!!!
+              cur.execute(updatePoints,(win1,nick))      #This works!!!!!!!!
               conn.commit()
-              with conn.cursor() as cur:                      #FIXED!!!!
-                cur.execute(money,nick)
-                balance = cur.fetchone()
-                print(f'Ваш баланс: {balance[0]}')
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Ваш баланс: {balance[0]}')
               cont = input("Хотите продолжить?(Y/N): ").lower()
               if cont == "y":
                 bomb2 = random.randint(1,3)
@@ -156,27 +160,23 @@ while points > 0:
                 if int(userBomb2) in range (1,4):
                   if userBomb2 == bomb2:
                     print('Вы взорвались!\n')
-                    # points -= bet*1.2
                     lose2 = -(bet*1.2)
                     print('Вы проиграли: '+ str(bet*1.2))
-                    conn.cursor().execute(updatePoints,(lose2,nick))      #This works!!!!!!!!
+                    cur.execute(updatePoints,(lose2,nick))      #This works!!!!!!!!
                     conn.commit()
-                    with conn.cursor() as cur:                      #FIXED!!!!
-                      cur.execute(money,nick)
-                      balance = cur.fetchone()
-                      print(f'Ваш баланс: {balance[0]}')
+                    cur.execute(money,nick)
+                    balance = cur.fetchone()
+                    print(f'Ваш баланс: {balance[0]}')
                     continue
                   else:
                     print('Вы выиграли: ' + str(bet*0.3))
-                    # points += bet*0.3
                     win2 = bet*0.3
                     print('Бомба была в ячейке: '+ str(bomb2) + '\n')
-                    conn.cursor().execute(updatePoints,(win2,nick))      #This works!!!!!!!!
+                    cur.execute(updatePoints,(win2,nick))      #This works!!!!!!!!
                     conn.commit()
-                    with conn.cursor() as cur:                      #FIXED!!!!
-                      cur.execute(money,nick)
-                      balance = cur.fetchone()
-                      print(f'Ваш баланс: {balance[0]}')
+                    cur.execute(money,nick)
+                    balance = cur.fetchone()
+                    print(f'Ваш баланс: {balance[0]}')
                   cont2 = input("Хотите продолжить?(Y/N): ").lower()
                   if cont2 =="y":
                     bomb3 = random.randint(1,2)
@@ -184,28 +184,24 @@ while points > 0:
                     if int(userBomb3) in range (1,3):
                       if userBomb3 == bomb3:
                         print('Вы взорвались!\n')
-                        # points -= bet*1.5
                         lose3 = -(bet*1.5)
                         print('Вы проиграли: '+ str(bet*1.5))
-                        conn.cursor().execute(updatePoints,(lose3,nick))      #This works!!!!!!!!
+                        cur.execute(updatePoints,(lose3,nick))      #This works!!!!!!!!
                         conn.commit()
-                        with conn.cursor() as cur:                      #FIXED!!!!
-                          cur.execute(money,nick)
-                          balance = cur.fetchone()
-                          print(f'Ваш баланс: {balance[0]}')
+                        cur.execute(money,nick)
+                        balance = cur.fetchone()
+                        print(f'Ваш баланс: {balance[0]}')
                         continue
                       else:
                         print('Вы выиграли: ' + str(bet*2.5))
-                        points += bet*2.5
                         print('Бомба была в ячейке: ' + str(bomb) + '\n')
                         print('Победитель!')
                         win3 = bet*2.5
-                        conn.cursor().execute(updatePoints,(win3,nick))      #This works!!!!!!!!
+                        cur.execute(updatePoints,(win3,nick))      #This works!!!!!!!!
                         conn.commit()
-                        with conn.cursor() as cur:                      #FIXED!!!!
-                          cur.execute(money,nick)
-                          balance = cur.fetchone()
-                          print(f'Ваш баланс: {balance[0]}')
+                        cur.execute(money,nick)
+                        balance = cur.fetchone()
+                        print(f'Ваш баланс: {balance[0]}')
                     else:
                       print('Неверный ввод. Повторите попытку.\n')
                       continue
@@ -217,7 +213,7 @@ while points > 0:
                   continue
               else:
                 print('Спасибо за игру.')
-                continue         
+                continue
           else:
             print('Неверный ввод. Повторите попытку.\n')
             continue
@@ -229,90 +225,132 @@ while points > 0:
             continue
           elif userCoin == coin:
             print("Верно!")
-            print('Вы выиграли: ' + str(bet))
-            conn.cursor().execute(updatePoints,(+bet,nick))      #This works!!!!!!!!
+            print(f'Вы выиграли: {bet}')
+            winCoin = bet
+            cur.execute(updatePoints,(winCoin,nick))      #This works!!!!!!!!
             conn.commit()
+            cur.execute(money,nick)
+            balance = cur.fetchone()
             # conn.close()
-            # print(conn.cursor().execute(money,nick))          #Returns 1 - need to fix
-            with conn.cursor() as cur:                          #FIXED!!!
-              cur.execute(money,nick)
-              balance = cur.fetchone()
-              print(f'Ваш баланс: {balance[0]}')
+            print(f'Ваш баланс: {balance[0]}')
           else:
             print("Не повезло...")
-            print('Вы проиграли: ' + str(bet))
-            conn.cursor().execute(updatePoints,(-bet,nick))      #This works!!!!!!!!
+            print(f'Вы проиграли: {bet}')
+            loseCoin = -(bet)
+            cur.execute(updatePoints,(loseCoin,nick))      #This works!!!!!!!!
             conn.commit()
+            cur.execute(money,nick)
+            balance = cur.fetchone()
             # conn.close()
-            # print(conn.cursor().execute(money,nick))     #Returns 1 - need to fix
-            with conn.cursor() as cur:                      #FIXED!!!!
-              cur.execute(money,nick)
-              balance = cur.fetchone()
-              print(f'Ваш баланс: {balance[0]}')
+            print(f'Ваш баланс: {balance[0]}')
         elif userChoice == 'у':
           number = random.randint(1, 100)
           secret_number = random.randint(1,100)
-          user_answer = input('\nБыло загадано число ' + str(number) + ', также было загадано второе число.\nУгадайте, больше оно, меньше, или равно ' + str(number) + ' ' + '(Б/М/Р): ').lower()
+          user_answer = input(f'\nБыло загадано число {number}, также было загадано второе число.\nУгадайте, больше оно, меньше, или равно {number} (Б/М/Р): ').lower()
           if user_answer == 'б' and number < secret_number:
             if number in range (1, 11) or number in range(90, 101):
-              points += bet * 0.1
-              print('Вы выиграли: ' + str(bet * 0.1))
-              print('Выпало число: ' + str(secret_number))         
-              print('Ваш текущий баланс: ' + str(points))
+              numWinb1 = bet * 0.1
+              cur.execute(updatePoints,(numWinb1,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Вы выиграли: {bet * 0.1}')
+              print(f'Выпало число: {secret_number}')
+              print(f'Ваш баланс: {balance[0]}')
             elif number in range (10, 25) or number in range(75, 90):
-              points += bet * 0.25
-              print('Вы выиграли: ' + str(bet * 0.25))
-              print('Выпало число: ' + str(secret_number))         
-              print('Ваш текущий баланс: ' + str(points))
+              numWinb2 = bet * 0.25
+              cur.execute(updatePoints,(numWinb2,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Вы выиграли: {bet * 0.25}')
+              print(f'Выпало число: {secret_number}')
+              print(f'Ваш баланс: {balance[0]}')
             elif number in range (25, 75):
-              points += bet
-              print('Вы выиграли: ' + str(bet))
-              print('Выпало число: ' + str(secret_number))         
-              print('Ваш текущий баланс: ' + str(points))
+              numWinb3 = bet
+              cur.execute(updatePoints,(numWinb3,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Вы выиграли: {bet}')
+              print(f'Выпало число: {secret_number}')
+              print(f'Ваш баланс: {balance[0]}')
             else:
               print('Ошибка, повторите попытку.')
-          elif user_answer == 'м' and number > secret_number: 
+          elif user_answer == 'м' and number > secret_number:
             if number in range (1, 11) or number in range(90, 101):
-              points += bet * 0.1
-              print('Вы выиграли: ' + str(bet * 0.1))
-              print('Выпало число: ' + str(secret_number))         
-              print('Ваш текущий баланс: ' + str(points))
+              numWinm1 = bet * 0.1
+              cur.execute(updatePoints,(numWinm1,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Вы выиграли: {bet * 0.1}')
+              print(f'Выпало число: {secret_number}')
+              print(f'Ваш баланс: {balance[0]}')
             elif number in range (10, 25) or number in range(75, 90):
-              points += bet * 0.25
-              print('Вы выиграли: ' + str(bet * 0.25))
-              print('Выпало число: ' + str(secret_number))         
-              print('Ваш текущий баланс: ' + str(points))
+              numWinm2 = bet * 0.25
+              cur.execute(updatePoints,(numWinm2,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Вы выиграли: {bet * 0.25}')
+              print(f'Выпало число: {secret_number}')
+              print(f'Ваш баланс: {balance[0]}')
             elif number in range (25, 75):
-              points += bet
-              print('Вы выиграли: ' + str(bet))
-              print('Выпало число: ' + str(secret_number))         
-              print('Ваш текущий баланс: ' + str(points))
+              numWinm3 = bet
+              cur.execute(updatePoints,(numWinm3,nick))      #This works!!!!!!!!
+              conn.commit()
+              cur.execute(money,nick)
+              balance = cur.fetchone()
+              print(f'Вы выиграли: {bet}')
+              print(f'Выпало число: {secret_number}')
+              print(f'Ваш баланс: {balance[0]}')
             else:
               print('Ошибка, повторите попытку.')
           elif user_answer == 'р' and number == secret_number:
-            points = bet * 100
+            numWineq = bet * 100
+            cur.execute(updatePoints,(numWineq,nick))      #This works!!!!!!!!
+            conn.commit()
+            cur.execute(money,nick)
+            balance = cur.fetchone()
             print('Ничего себе!')
-            print('Вы выиграли: ' + str(bet * 100))
-            print('Выпало число: ' + str(secret_number))         
-            print('Ваш текущий баланс: ' + str(points))
+            print(f'Вы выиграли: {bet * 100}')
+            print(f'Выпало число: {secret_number}')
+            print(f'Ваш баланс: {balance[0]}')
           elif user_answer == 'б' and number > secret_number:
-            points -= bet
-            print('Вы проиграли: ' + str(bet))
-            print('Выпало число: ' + str(secret_number))         
-            print('Ваш текущий баланс: ' + str(points))
+            numLoseb = -(bet)
+            cur.execute(updatePoints,(numLoseb,nick))      #This works!!!!!!!!
+            conn.commit()
+            cur.execute(money,nick)
+            balance = cur.fetchone()
+            print(f'Вы проиграли: {bet}')
+            print(f'Выпало число: {secret_number}')
+            print(f'Ваш баланс: {balance[0]}')
           elif user_answer == 'м' and number < secret_number:
-            points -= bet
-            print('Вы проиграли: ' + str(bet))
-            print('Выпало число: ' + str(secret_number))         
-            print('Ваш текущий баланс: ' + str(points))
+            numLosem = -(bet)
+            cur.execute(updatePoints,(numLosem,nick))      #This works!!!!!!!!
+            conn.commit()
+            cur.execute(money,nick)
+            balance = cur.fetchone()
+            print(f'Вы проиграли: {bet}')
+            print(f'Выпало число: {secret_number}')
+            print(f'Ваш баланс: {balance[0]}')
           elif user_answer == 'р' and number != secret_number:
-            points -= bet
+            numLoseeq = -(bet)
+            cur.execute(updatePoints,(numLoseeq,nick))      #This works!!!!!!!!
+            conn.commit()
+            cur.execute(money,nick)
+            balance = cur.fetchone()
             print('Не повезло...')
-            print('Вы проиграли: ' + str(bet))
-            print('Выпало число: ' + str(secret_number))         
-            print('Ваш текущий баланс: ' + str(points))
+            print(f'Вы проиграли: {bet}')
+            print(f'Выпало число: {secret_number}')
+            print(f'Ваш баланс: {balance[0]}')
           else:
             print('Неверный ввод, повторите попытку!')
             continue
+  if balance[0] <= 0:
+    print('\nУ вас закончились средства! Создайте новый аккаунт или обратитесь к администратору.')
+  else:
+    pass
   # except Exception:
   #   pass
