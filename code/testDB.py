@@ -2,6 +2,7 @@
 import random
 import pymysql
 import time
+from getpass import getpass
 
 from pymysql.cursors import Cursor
 conn = pymysql.connect(host='sql5.freemysqlhosting.net',
@@ -27,15 +28,32 @@ checkNick = "SELECT * FROM userdata WHERE nick = %s"
 checkPasswd = "SELECT * FROM userdata WHERE passwd = %s;"
 updatePoints = "UPDATE userdata SET balance = balance + %s WHERE nick = %s"
 money = "SELECT balance FROM userdata WHERE nick = %s"
+ruleSelector = "SELECT rules FROM gamerules WHERE title = %s"
+chooseEvent = "SELECT title FROM events WHERE id = %s"
+isEmail = "SELECT email FROM userdata WHERE nick = %s"
+countEvents = "SELECT COUNT(*) FROM events"
+email = 'SELECT title FROM events WHERE id = 4'
+addmail = 'UPDATE userdata SET email = %s WHERE nick = %s'
+resetInserter = "INSERT INTO resetemail(nick, passwd, email) VALUES(%s,%s,%s)"
+resetCheckPasswd = "SELECT passwd FROM userdata WHERE nick = %s"
+checkReset = "SELECT nick FROM resetemail WHERE nick = %s"
+getResetList = "SELECT nick,passwd,email FROM resetemail"
 
+print('Добро пожаловать в Eonia! Ваш пароль будет скрыт в целях Вашей конфиденциальности.\n')
+wrongTries = 0
 while True:
+    with conn.cursor() as cur:
+        cur.execute(countEvents)
+        cntev = cur.fetchone()
+        numEvents = cntev[0]
+    randEvent = 5 #random.randint(1,numEvents)
     nick = input('Введите Ваш ник: ').replace(' ', '')
-    passwd = input('Введите Ваш пароль: ').replace(' ', '')
+    passwd = getpass('Введите Ваш пароль: ').replace(' ', '')
     if conn.cursor().execute(checkNick,(nick)) == False:
         reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N)').lower()
         if reg == 'y':
             while True:
-                passwd = input('Введите Ваш пароль: ')
+                passwd = getpass('Введите Ваш пароль: ')
                 check = input('Подтвердите Ваш пароль: ')
                 if passwd==check:
                     if isBlank(passwd):
@@ -46,7 +64,8 @@ while True:
                         continue
                     else:
                         conn.cursor().execute(inserter,(nick,passwd))
-                        print(f'Регистрация пользователя {nick} прошла успешно!')
+                        print(f'Регистрация пользователя {nick} прошла успешно!\n')
+                        print('Вам требуется войти в аккаунт.\n')
                         conn.commit()
                         break
                 elif passwd!=check:
@@ -65,11 +84,55 @@ while True:
                 cur.execute(money, nick)
                 balance = cur.fetchone()
                 print(f'\nДобро пожаловать, {nick}!\nВаш баланс: {balance[0]}')
+                print()
                 #close connection!
                 break
         else:
             print(f'Неверный пароль для пользователя {nick}. Повторите попытку.')
-            continue
+            wrongTries += 1
+            print(wrongTries)
+            if wrongTries >= 3:
+                resetChoose = input(f'Вы ввели пароль неверно {wrongTries} раз(а). Хотите восстановить? (Y/N): ').lower()
+                if resetChoose == 'y':
+                    with conn.cursor() as cur:
+                        cur.execute(checkReset, nick)
+                        checkResetNick = cur.fetchone()
+                    if checkResetNick == nick: 
+                        print(f'У вас уже есть активный запрос на восстановление пароля для пользователя {nick}.\nПроверьте почту.\n')
+                        continue
+                    else:
+                        with conn.cursor() as cur:
+                            cur.execute(isEmail, nick)
+                            userEmail = cur.fetchone()
+                            if userEmail:
+                                with conn.cursor() as cur:
+                                    cur.execute(resetCheckPasswd, nick)
+                                    oldPass = cur.fetchone()
+                                    oldPass = oldPass[0]
+                                    userEmail = userEmail[0]
+                                    cur.execute(resetInserter,(nick, oldPass, userEmail))
+                                    conn.commit()
+                                    continue
+                            else:
+                                print(f'У аккаунта {nick} не привязана электронная почта. Восстановление невозможно.')
+                                continue
+                else:
+                    print('Хорошо.')
+                    continue
+            else:
+                continue
+with conn.cursor() as cur:
+    cur.execute(isEmail, nick)
+    checkMail = cur.fetchall()
+    if checkMail:
+        cur.execute(chooseEvent, randEvent)
+        event = cur.fetchone()
+        print(f'{nick}, для Вас доступно событие: "{event[0]}"')
+    else:
+        cur.execute(email)
+        emailEvent = cur.fetchone()               
+        print(f'{nick}, Вам доступно событие: "{emailEvent[0]}"\nЧтобы оставить email, напишите команду "addmail".')
+        
 
 print('\nЕсли вы хотите узнать правила или ваш баланс, напишите "rules" или "balance" соответственно на следующем шаге.\nДля вызова рейтинга, напишите "rating".')
 
@@ -123,26 +186,144 @@ with conn.cursor() as cur:
                 pass
     else:
         pass
+    eventCounter = 0
+    userChoice = ''
     while balance[0] > 0:
         with conn.cursor() as cur:
+            def checkEvent1(a,b,c):
+                if randEvent == 3:
+                    if userChoice == 'б':
+                        if (a+b+c) >= 1000:
+                            print('Вы выполнили задание. 150 было начислено на Ваш счет.')
+                            global eventCounter
+                            eventCounter += 1
+                            cur.execute(updatePoints,(150,nick))      #This works!!!!!!!!
+                            conn.commit()
+                        else:
+                            pass
+                elif randEvent == 1:
+                    if (a+b+c)>=1000:
+                        print('Вы выполнили задание. 100 было начислено на Ваш счет.')
+                        eventCounter += 1
+                        cur.execute(updatePoints,(100,nick))      #This works!!!!!!!!
+                        conn.commit()
+                    else:
+                        pass
+                elif randEvent == 2:
+                    if userChoice == 'м':
+                        if (a+b+c) >= 500:
+                            print('Вы выполнили задание. 150 было начислено на Ваш счет.')
+                            eventCounter += 1
+                            cur.execute(updatePoints,(150,nick))      #This works!!!!!!!!
+                            conn.commit()
+                        else:
+                            pass
+                elif randEvent == 4:
+                    pass
+                elif randEvent == 5:
+                    if userChoice == 'у':
+                        if (a+b+c) >= 500:
+                            print('Вы выполнили задание. 200 было начислено на Ваш счет.')
+                            eventCounter += 1
+                            cur.execute(updatePoints,(200,nick))      #This works!!!!!!!!
+                            conn.commit()
+                        else:
+                            pass
+                else:
+                    pass
             cur.execute(money,nick)
             balance = cur.fetchone()
             userChoice = input('\nВыберите, в какой режим вы хотите сыграть:\nБомбы, Угадай число, Монетка(Б/У/М): ').lower()
             if userChoice == 'rules':
-                print('''Правила:
-        Бомбы: Случайным образом было загадано число(N) в указанном промежутке.
-                Вам требуется угадать одно из остальных чисел, кроме N.
-                С каждым шагом интервал будет уменьшаться, но и выигрыш будет увеличиваться соответственно шансу.
-        Угадай число: Компьютером будет загадано одно число(A), 
-                      которое доступно только ему, а также будет сгенерировано второе число, которое вы будете видеть на экране(B).
-                      Ваша задача угадать, окажется ли число A больше, меньше либо равно B.
-                      Чем ближе число B к 50, тем сложнее угадать, и тем больше ваш выигрыш в случае победы.
-        Монетка: Суть игры довольно проста, "подкидывается монетка" и нужно угадать, какая сторона окажется сверху.
-                  В данном режиме, в случае выигрыша ставки удваиваются.
-                  ______________________________________________________
-                  Чтобы выйти из игры, в любой момент напишите "exit".''')
-                print('                                   Желаем Удачи!\n')
+                while True:
+                    ruleChoose = input('\nХорошо. Правила какого режима вы хотите посмотреть? (Или напишите "cancel", чтобы выйти.) \nБомбы,Монетка,Угадай число(B/C/G): ').lower()
+                    if ruleChoose == "b":
+                        cur.execute(ruleSelector,"Bombs")
+                        ruleBombs = cur.fetchone()
+                        print(f'\n{ruleBombs[0]}')
+                        continue
+                    elif ruleChoose == "c":
+                        cur.execute(ruleSelector,"Coin")
+                        ruleBombs = cur.fetchone()
+                        print(f'\n{ruleBombs[0]}')
+                        continue
+                    elif ruleChoose == "g":
+                        cur.execute(ruleSelector,"GN")
+                        ruleBombs = cur.fetchone()
+                        print(f'\n{ruleBombs[0]}')
+                        continue
+                    elif ruleChoose == "cancel":
+                        break
+                    else:
+                        print('Неверный ввод, повторите попытку.')
+                        continue
                 continue
+            elif userChoice == 'admin':
+                if nick == 'corruptzero':
+                    cur.execute(getResetList)
+                    resetList = cur.fetchall()
+                    for tuples in resetList:
+                        n = 0
+                        try:
+                            resetUser = resetList[n]
+                            file = open("reset.txt", "w")
+                            file.write(f'{resetUser}\n')
+                            file.close()
+                            n+=1
+                        except IndexError:
+                            print('Был получен список из {n} пользователей.')
+                            break
+                else:
+                    print('Доступ запрещен.')
+                    continue
+            elif userChoice == 'addmail':
+                cur.execute(isEmail,nick)
+                mail = cur.fetchone()
+                if mail:
+                    changeMail = input(f'{nick}, у Вас уже добавлен email. Вы хотите изменить его? (Y/N)').lower()
+                    if changeMail == 'y':
+                        newMail = input('Введите Ваш новый email: ').replace(' ','')
+                        if isBlank(newMail):
+                            print('Email не может быть пустым. Повторите попытку.')
+                            continue
+                        elif '@' not in newMail:
+                            print('Это не похоже на email. Повторите попытку.')
+                            continue
+                        else:
+                            commitMail = input(f'Для пользователя {nick} будет изменен email "{mail[0]}". Верно? (Y/N)').lower()
+                            if commitMail == 'y':
+                                cur.execute(addmail,(newMail,nick))
+                                conn.commit()
+                                print(f'Email "{newMail}" был привязан к пользователю {nick}.')
+                                print(f'Спасибо! Ваш email был изменен("{mail[0]}"=>"{newMail}")')
+                                continue
+                            elif commitMail == 'n':
+                                print('Хорошо. Возращаемся в главное меню.')
+                                continue
+                    elif changeMail == 'n':
+                        print('Хорошо. Возращаемся в главное меню.')
+                        continue
+                else:
+                    userMail = input('Введите Ваш email: ').replace(' ','')
+                    if isBlank(userMail):
+                        print('Email не может быть пустым. Повторите попытку.')
+                        continue
+                    elif '@' not in userMail:
+                        print('Это не похоже на email. Повторите попытку.')
+                        continue
+                    else:
+                        commitMail = input(f'Для пользователя {nick} будет установлен email "{userMail}". Верно? (Y/N)').lower()
+                        if commitMail == 'y':
+                            cur.execute(addmail,(userMail,nick))
+                            conn.commit()
+                            print(f'Email "{userMail}" был привязан к пользователю {nick}.')
+                            cur.execute(updatePoints,(1000,nick))
+                            conn.commit()
+                            print('Спасибо! Вам начислено: 1000')
+                            continue
+                        elif commitMail == 'n':
+                            print('Хорошо. Возращаемся в главное меню.')
+                            continue
             elif userChoice == 'rating':
                 cur.execute(getRating)
                 rating = cur.fetchall()
@@ -174,7 +355,7 @@ with conn.cursor() as cur:
                 balance = cur.fetchone()
                 print(f'Ваш баланс: {balance[0]}')
                 continue
-            elif userChoice not in ('б','у','м','exit','rating'):
+            elif userChoice not in ('б','у','м','exit','rating','addmail'):
                 print('\nТакого режима нет. Повторите попытку.')
                 continue
             bet = int(input('Введите ставку: '))
@@ -222,7 +403,6 @@ with conn.cursor() as cur:
                                         conn.commit()
                                         cur.execute(money,nick)
                                         balance = cur.fetchone()
-                                        print(f'Ваш баланс: {balance[0]}')
                                         continue
                                     else:
                                         print(f'Вы выиграли: {bet*0.3}')
@@ -232,7 +412,6 @@ with conn.cursor() as cur:
                                         conn.commit()
                                         cur.execute(money,nick)
                                         balance = cur.fetchone()
-                                        print(f'Ваш баланс: {balance[0]}')
                                     cont2 = input("Хотите продолжить?(Y/N): ").lower()
                                     if cont2 =="y":
                                         bomb3 = random.randint(1,2)
@@ -257,18 +436,32 @@ with conn.cursor() as cur:
                                                 conn.commit()
                                                 cur.execute(money,nick)
                                                 balance = cur.fetchone()
+                                                if eventCounter == 0:
+                                                    checkEvent1(win1,win2,win3)
+                                                else:
+                                                    pass
                                                 print(f'Ваш баланс: {balance[0]}')
                                         else:
                                             print('Неверный ввод. Повторите попытку.\n')
                                             continue
                                     else:
                                         print('Спасибо за игру.')
+                                        if eventCounter == 0:
+                                            checkEvent1(win1,win2, 0)
+                                        else:
+                                            pass
+                                        print(f'Ваш баланс: {balance[0]}')
                                         continue
                                 else:
                                     print('Неверный ввод. Повторите попытку.\n')
                                     continue
                             else:
                                 print('Спасибо за игру.')
+                                if eventCounter == 0:
+                                    checkEvent1(win1, 0, 0)
+                                else:
+                                    pass
+                                print(f'Ваш баланс: {balance[0]}')
                                 continue
                     else:
                         print('Неверный ввод. Повторите попытку.\n')
@@ -289,6 +482,10 @@ with conn.cursor() as cur:
                             cur.execute(money,nick)
                             balance = cur.fetchone()
                             # conn.close()
+                            if eventCounter == 0:
+                                checkEvent1(winCoin,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         else:
                             print("Не повезло...")
@@ -316,6 +513,10 @@ with conn.cursor() as cur:
                             balance = cur.fetchone()
                             print(f'Вы выиграли: {bet * 0.1}')
                             print(f'Выпало число: {secret_number}')
+                            if eventCounter == 0:
+                                checkEvent1(numWinb1,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         elif number in range (10, 25) or number in range(75, 90):
                             numWinb2 = bet * 0.25
@@ -325,6 +526,10 @@ with conn.cursor() as cur:
                             balance = cur.fetchone()
                             print(f'Вы выиграли: {bet * 0.25}')
                             print(f'Выпало число: {secret_number}')
+                            if eventCounter == 0:
+                                checkEvent1(numWinb2,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         elif number in range (25, 75):
                             numWinb3 = bet
@@ -334,6 +539,10 @@ with conn.cursor() as cur:
                             balance = cur.fetchone()
                             print(f'Вы выиграли: {bet}')
                             print(f'Выпало число: {secret_number}')
+                            if eventCounter == 0:
+                                checkEvent1(numWinb3,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         else:
                             print('Ошибка, повторите попытку.')
@@ -346,6 +555,10 @@ with conn.cursor() as cur:
                             balance = cur.fetchone()
                             print(f'Вы выиграли: {bet * 0.1}')
                             print(f'Выпало число: {secret_number}')
+                            if eventCounter == 0:
+                                checkEvent1(numWinm1,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         elif number in range (10, 25) or number in range(75, 90):
                             numWinm2 = bet * 0.25
@@ -355,6 +568,10 @@ with conn.cursor() as cur:
                             balance = cur.fetchone()
                             print(f'Вы выиграли: {bet * 0.25}')
                             print(f'Выпало число: {secret_number}')
+                            if eventCounter == 0:
+                                checkEvent1(numWinm2,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         elif number in range (25, 75):
                             numWinm3 = bet
@@ -364,6 +581,10 @@ with conn.cursor() as cur:
                             balance = cur.fetchone()
                             print(f'Вы выиграли: {bet}')
                             print(f'Выпало число: {secret_number}')
+                            if eventCounter == 0:
+                                checkEvent1(numWinm3,0,0)
+                            else:
+                                pass
                             print(f'Ваш баланс: {balance[0]}')
                         else:
                             print('Ошибка, повторите попытку.')
@@ -376,6 +597,10 @@ with conn.cursor() as cur:
                         print('Ничего себе!')
                         print(f'Вы выиграли: {bet * 100}')
                         print(f'Выпало число: {secret_number}')
+                        if eventCounter == 0:
+                                checkEvent1(numWineq,0,0)
+                        else:
+                            pass
                         print(f'Ваш баланс: {balance[0]}')
                     elif user_answer == 'б' and number > secret_number:
                         numLoseb = -(bet)
@@ -415,4 +640,12 @@ with conn.cursor() as cur:
     # except Exception:
     #   pass
 
-#Монетка реализовать опечатку в выборе стороны
+#тип данных строка для ввода ставки
+
+#возможность изменить имейл
+
+#угадай число пофиксить меньше (Угадайте, больше оно, меньше, или равно 82 (Б/М/Р): м Неверный ввод, повторите попытку!)
+
+#Добавить ивент: подбросить монетку 3 раза подряд
+
+#Добавить ивент: пройти бомбы до концаd
