@@ -37,7 +37,7 @@ addmail = 'UPDATE userdata SET email = %s WHERE nick = %s'
 resetInserter = "INSERT INTO resetemail(nick, passwd, email) VALUES(%s,%s,%s)"
 resetCheckPasswd = "SELECT passwd FROM userdata WHERE nick = %s"
 checkReset = "SELECT nick FROM resetemail WHERE nick = %s"
-getResetList = "SELECT nick,passwd,email FROM resetemail"
+getResetList = "SELECT * FROM resetemail"
 
 print('Добро пожаловать в Eonia! Ваш пароль будет скрыт в целях Вашей конфиденциальности.\n')
 wrongTries = 0
@@ -123,8 +123,8 @@ while True:
                 continue
 with conn.cursor() as cur:
     cur.execute(isEmail, nick)
-    checkMail = cur.fetchall()
-    if checkMail:
+    checkMail = cur.fetchone()
+    if "@" in checkMail[0]:
         cur.execute(chooseEvent, randEvent)
         event = cur.fetchone()
         print(f'{nick}, для Вас доступно событие: "{event[0]}"')
@@ -262,24 +262,18 @@ with conn.cursor() as cur:
                 if nick == 'corruptzero':
                     cur.execute(getResetList)
                     resetList = cur.fetchall()
-                    for tuples in resetList:
-                        n = 0
-                        try:
-                            resetUser = resetList[n]
-                            file = open("reset.txt", "w")
-                            file.write(f'{resetUser}\n')
-                            file.close()
-                            n+=1
-                        except IndexError:
-                            print('Был получен список из {n} пользователей.')
-                            break
+                    file = open("reset.txt", "w")
+                    for i in resetList:
+                        file.write(f'{i[1]}, {i[2]}, {i[3]}')
+                        file.write(f'\n')
+                    file.close()    
                 else:
                     print('Доступ запрещен.')
                     continue
             elif userChoice == 'addmail':
                 cur.execute(isEmail,nick)
                 mail = cur.fetchone()
-                if mail:
+                if "@" in mail:
                     changeMail = input(f'{nick}, у Вас уже добавлен email. Вы хотите изменить его? (Y/N)').lower()
                     if changeMail == 'y':
                         newMail = input('Введите Ваш новый email: ').replace(' ','')
