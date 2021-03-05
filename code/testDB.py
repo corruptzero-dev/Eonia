@@ -2,7 +2,7 @@
 import random
 import pymysql
 import time
-from getpass import getpass
+import stdiomask
 
 from pymysql.cursors import Cursor
 conn = pymysql.connect(host='sql5.freemysqlhosting.net',
@@ -38,6 +38,9 @@ resetInserter = "INSERT INTO resetemail(nick, passwd, email) VALUES(%s,%s,%s)"
 resetCheckPasswd = "SELECT passwd FROM userdata WHERE nick = %s"
 checkReset = "SELECT nick FROM resetemail WHERE nick = %s"
 getResetList = "SELECT * FROM resetemail"
+addBalance = "UPDATE userdata SET balance = %s WHERE nick = %s"
+deleteSent = "DELETE FROM resetemail WHERE nick = %s"
+delUser = "DELETE FROM userdata WHERE nick = %s"
 
 print('Добро пожаловать в Eonia! Ваш пароль будет скрыт в целях Вашей конфиденциальности.\n')
 wrongTries = 0
@@ -46,15 +49,15 @@ while True:
         cur.execute(countEvents)
         cntev = cur.fetchone()
         numEvents = cntev[0]
-    randEvent = 5 #random.randint(1,numEvents)
+    randEvent = random.randint(1,numEvents)
     nick = input('Введите Ваш ник: ').replace(' ', '')
-    passwd = getpass('Введите Ваш пароль: ').replace(' ', '')
+    passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*').replace(' ', '')
     if conn.cursor().execute(checkNick,(nick)) == False:
         reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N)').lower()
         if reg == 'y':
             while True:
-                passwd = getpass('Введите Ваш пароль: ')
-                check = input('Подтвердите Ваш пароль: ')
+                passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
+                check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
                 if passwd==check:
                     if isBlank(passwd):
                         print('Пароли не могут быть пустыми. Повторите попытку.')
@@ -259,17 +262,94 @@ with conn.cursor() as cur:
                         continue
                 continue
             elif userChoice == 'admin':
-                if nick == 'corruptzero':
-                    cur.execute(getResetList)
-                    resetList = cur.fetchall()
-                    file = open("reset.txt", "w")
-                    for i in resetList:
-                        file.write(f'{i[1]}, {i[2]}, {i[3]}')
-                        file.write(f'\n')
-                    file.close()    
-                else:
-                    print('Доступ запрещен.')
-                    continue
+                while True:
+                    if nick in ('corruptzero', 'Ilya', 'klim'):
+                        print(f'{nick}, вы вошли в режим администрирования. Чтобы выйти, напишите "logout"\n')
+                        adminChoose = input('Что Вы хотите сделать? Напишите "help", чтобы узнать все возможности: ').lower()
+                        if adminChoose == 'help':
+                            print('''
+                            Команды администрирования:
+                            1. "getReset" - получить файл с пользователями, подавшими заявку на reset.
+                            2. "comReset" - удалить пользователей из resetEmail.
+                            3. "addBalance" - добавить баланс пользователю.
+                            4. "delUser" - удалить пользователя из таблицы userData. (ОСТОРОЖНО)
+                            5. "addUser" - добавить пользователя в таблицу userData.
+                            ''')
+                        elif adminChoose == 'getreset':
+                            cur.execute(getResetList)
+                            resetList = cur.fetchall()
+                            file = open("reset.txt", "w")
+                            numResets = 0
+                            for i in resetList:
+                                file.write(f'{i[1]}, {i[2]}, {i[3]}')
+                                file.write(f'\n')
+                                numResets += 1
+                            file.close()
+                            print(f'{nick}, в файл "reset.txt" было добавлено {numResets} записи(-ей).')
+                            continue
+                        elif adminChoose == 'comreset':
+                            confirm = input('Вы уверены, что хотите удалить пользователей из базы resetEmail и текстового файла? (Y/N): ').lower()
+                            if confirm == 'y':
+                                filer = open("reset.txt", "r+")
+                                sent = filer.read()
+                                sent = sent.replace('\n', ',').replace(' ', '').split(',')
+                                sent.pop()
+                                comResetNicks = []
+                                ind = 0
+                                for i in sent:
+                                    try:
+                                        comResetNicks.append(sent[ind])
+                                        ind += 3
+                                    except IndexError:
+                                        print(f'{len(comResetNicks)} ника(-ов) добавлены в очередь для удаления.')
+                                        break
+                                for i in comResetNicks:
+                                    cur.execute(deleteSent,i)
+                                conn.commit()
+                                print(f'Было удалено {len(comResetNicks)} ника(-ов) из БД resetemail.')
+                                filer.truncate(0)
+                                filer.close()
+                            else:
+                                print('Отмена.')
+                                continue
+                        elif adminChoose == 'addbalance':
+                            adminUser = input('Введите ник пользователя: ')
+                            adminBal = input(f'Введите баланс для пользователя {adminUser}: ')
+                            cur.execute(money,adminUser)
+                            oldMoney = cur.fetchone()
+                            cur.execute(addBalance,(adminBal,adminUser))
+                            conn.commit()
+                            print(f'{nick}, баланс пользователя {adminUser} был изменен ({oldMoney[0]} => {adminBal})')
+                            continue
+                        elif adminChoose == 'adduser':
+                            addUserNick = input('Введите ник: ')
+                            addUserPasswd = input('Введите пароль: ')
+                            cur.execute(inserter,(addUserNick,addUserPasswd))
+                            conn.commit()
+                            print(f'Был создан пользователь с ником {addUserNick} и паролем {addUserPasswd}.')
+                            continue
+                        elif adminChoose == 'deluser':
+                            confirm = input('Вы уверены, что хотите удалить пользователя? (Y/N): ').lower()
+                            if confirm == 'y':
+                                delNick = input('Введите ник пользователя, которого нужно удалить: ')
+                                if cur.execute(checkNick,delNick):
+                                    cur.execute(delUser,delNick)
+                                    print(f'Пользователь с ником {delNick} был удален.')
+                                    conn.commit()
+                                    continue
+                                else:
+                                    print('Такого пользователя нет.')
+                                    continue
+                            else:
+                                print('Отмена.')
+                                continue
+                        elif adminChoose == 'logout':
+                            print(f'{nick}, вы вышли из режим администрирования.')
+                            break
+                    else:
+                        print('Доступ запрещен.')
+                        break
+                continue
             elif userChoice == 'addmail':
                 cur.execute(isEmail,nick)
                 mail = cur.fetchone()
@@ -636,10 +716,8 @@ with conn.cursor() as cur:
 
 #тип данных строка для ввода ставки
 
-#возможность изменить имейл
-
 #угадай число пофиксить меньше (Угадайте, больше оно, меньше, или равно 82 (Б/М/Р): м Неверный ввод, повторите попытку!)
 
 #Добавить ивент: подбросить монетку 3 раза подряд
 
-#Добавить ивент: пройти бомбы до концаd
+#Добавить ивент: пройти бомбы до конца
