@@ -5,12 +5,34 @@ import time
 import stdiomask
 import string
 import re
-
 from pymysql.cursors import Cursor
-conn = pymysql.connect(host='sql5.freemysqlhosting.net',
-                       user='sql5395376',
-                       password='XNkiznZYb6',
-                       db='sql5395376')
+#sql-запросы для создания таблиц в БД (для избежания казусов)
+createUserdata = 'CREATE TABLE IF NOT EXISTS userdata (id int primary key AUTO_INCREMENT, nick varchar(40), passwd varchar(40), balance int UNSIGNED, email varchar(40));'
+createEvents = 'CREATE TABLE IF NOT EXISTS events (id int primary key auto_increment, title text);'
+createGamerules = 'CREATE TABLE IF NOT EXISTS gamerules (id int primary key auto_increment, rules text);'
+createTopusers = 'CREATE TABLE IF NOT EXISTS topusers(id int primary key auto_increment, nick varchar(40), balance int UNSIGNED);'
+createResetemail = 'CREATE TABLE IF NOT EXISTS resetemail(id int primary key auto_increment, nick varchar(40), passwd varchar(40), balance int UNSIGNED, email varchar(40));'
+
+with open('sql.txt') as f:
+        sqlData = f.readlines()
+f.close()
+sqlData = [line.rstrip() for line in sqlData]
+sqlHost = sqlData[0]
+sqlUser = sqlData[1]
+sqlPasswd = sqlData[2]
+sqlDb = sqlData[1]
+
+while True:
+    try:
+        conn = pymysql.connect(host=sqlHost,
+                            user=sqlUser,
+                            password=sqlPasswd,
+                            db=sqlDb)
+        break
+    except pymysql.err.OperationalError:
+        print('Не удалось установить соединение, возможно БД устарела.\nПроверьте файл "sql.txt" или обратитесь к администратору.')
+        break
+        
 def isBlank (myString):
     if myString and myString.strip():
         return False
@@ -55,142 +77,172 @@ while True:
     randEvent = random.randint(1,numEvents)
     nick = input('Введите Ваш ник: ').replace(' ', '')
     passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*').replace(' ', '')
-    if conn.cursor().execute(checkNick,(nick)) == False:
-        reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N)').lower()
-        if reg == 'y':
-            while True:
-                passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
-                if len(passwd) >= 6 and re.search('[a-zA-Z]', passwd):
-                    check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
-                    if passwd==check:
-                        if isBlank(passwd):
-                            print('Пароли не могут быть пустыми. Повторите попытку.')
+    try:
+        if conn.cursor().execute(checkNick,(nick)) == False:
+            reg = input(f'Пользователя с именем {nick} нет. Хотите ли вы его создать? (Y/N): ').lower()
+            if reg == 'y':
+                while True:
+                    passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
+                    if len(passwd) >= 6 and re.search('[a-zA-Z]', passwd):
+                        check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
+                        if passwd==check:
+                            if isBlank(passwd):
+                                print('Пароли не могут быть пустыми. Повторите попытку.')
+                                continue
+                            elif isBlank(checkPasswd):
+                                print('\nПароли не могут быть пустыми. Повторите попытку.\n')
+                                continue
+                            else:
+                                conn.cursor().execute(inserter,(nick,passwd))
+                                print(f'Регистрация пользователя {nick} прошла успешно!\n')
+                                print('Вам требуется войти в аккаунт.\n')
+                                conn.commit()
+                                break
+                        elif passwd!=check:
+                            print('Пароли не совпадают. Повторите попытку.')
                             continue
-                        elif isBlank(checkPasswd):
-                            print('\nПароли не могут быть пустыми. Повторите попытку.\n')
-                            continue
                         else:
-                            conn.cursor().execute(inserter,(nick,passwd))
-                            print(f'Регистрация пользователя {nick} прошла успешно!\n')
-                            print('Вам требуется войти в аккаунт.\n')
-                            conn.commit()
-                            break
-                    elif passwd!=check:
-                        print('Пароли не совпадают. Повторите попытку.')
-                        continue
+                            print('Неопознанная ошибка.')
+                            raise SystemError
                     else:
-                        print('Неопознанная ошибка.')
-                        raise SystemError
-                else:
-                    print('Пароль должен содержать не менее 6 символов, включая латинские буквы.')
-        elif reg == 'n':
-            print('Хорошо. Возвращаемся в главное меню.')
-            continue
-    else:
-        conn.select_db('sql5395376')
-        if conn.cursor().execute(checker,(nick,passwd)):
-            with conn.cursor() as cur:
-                cur.execute(checkLenPasswd,nick)
-                lenPasswd = cur.fetchone()
-                if re.search('[a-zA-Z]', lenPasswd[0]) == None:
-                    print(f'{nick}, Вам необходимо сменить пароль, т.к. он не соответствует минимальным требованиям (Не содержит латинские буквы).')
-                    while True:
-                        passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
-                        if len(passwd) >= 6 and re.search('[a-zA-Z]', passwd):
-                            check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
-                            if passwd==check:
-                                if isBlank(passwd):
-                                    print('Пароли не могут быть пустыми. Повторите попытку.')
-                                    continue
-                                elif isBlank(checkPasswd):
-                                    print('\nПароли не могут быть пустыми. Повторите попытку.\n')
-                                    continue
-                                else:
-                                    conn.cursor().execute(updatePasswd,(passwd,nick))
-                                    print(f'Смена пароля для пользователя {nick} прошла успешно!\n')
-                                    print('Вам требуется войти в аккаунт.\n')
-                                    conn.commit()
-                                    break
-                            elif passwd!=check:
-                                print('Пароли не совпадают. Повторите попытку.')
-                                continue
-                            else:
-                                print('Неопознанная ошибка.')
-                                raise SystemError
-                        else:
-                            print('Пароль должен содержать не менее 6 символов, включая латинские буквы.')
-                elif len(lenPasswd[0]) < 6:
-                    print(f'{nick}, Вам необходимо сменить пароль, т.к. он не соответствует минимальным требованиям (Менее 6 символов).')
-                    while True:
-                        passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
-                        if len(passwd) >= 6 and re.search('[a-zA-Z]', passwd):
-                            check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
-                            if passwd==check:
-                                if isBlank(passwd):
-                                    print('Пароли не могут быть пустыми. Повторите попытку.')
-                                    continue
-                                elif isBlank(checkPasswd):
-                                    print('\nПароли не могут быть пустыми. Повторите попытку.\n')
-                                    continue
-                                else:
-                                    conn.cursor().execute(updatePasswd,(passwd,nick))
-                                    print(f'Смена пароля для пользователя {nick} прошла успешно!\n')
-                                    print('Вам требуется войти в аккаунт.\n')
-                                    conn.commit()
-                                    break
-                            elif passwd!=check:
-                                print('Пароли не совпадают. Повторите попытку.')
-                                continue
-                            else:
-                                print('Неопознанная ошибка.')
-                                raise SystemError
-                        else:
-                            print('Пароль должен содержать не менее 6 символов, включая латинские буквы.')
-                else:
-                    cur.execute(money, nick)
-                    balance = cur.fetchone()
-                    print(f'\nДобро пожаловать, {nick}!\nВаш баланс: {balance[0]}')
-                    print()
-                    #close connection!
-                    break
-        else:
-            print(f'Неверный пароль для пользователя {nick}. Повторите попытку.')
-            wrongTries += 1
-            if wrongTries >= 3:
-                resetChoose = input(f'Вы ввели пароль неверно {wrongTries} раз(а). Хотите восстановить? (Y/N): ').lower()
-                if resetChoose == 'y':
-                    with conn.cursor() as cur:
-                        cur.execute(checkReset, nick)
-                        checkResetNick = cur.fetchone()
-                    if checkResetNick == nick:
-                        print(f'У вас уже есть активный запрос на восстановление пароля для пользователя {nick}.\nПроверьте почту.\n')
-                        continue
-                    else:
-                        with conn.cursor() as cur:
-                            cur.execute(isEmail, nick)
-                            userEmail = cur.fetchone()
-                            if userEmail:
-                                with conn.cursor() as cur:
-                                    cur.execute(resetCheckPasswd, nick)
-                                    oldPass = cur.fetchone()
-                                    oldPass = oldPass[0]
-                                    userEmail = userEmail[0]
-                                    cur.execute(resetInserter,(nick, oldPass, userEmail))
-                                    conn.commit()
-                                    print(f'Заявка на восстановление пароля для пользователя {nick} оставлена успешно!\nОжидайте письмо на почту в течение 1-го рабочего дня.\n')
-                                    continue
-                            else:
-                                print(f'У аккаунта {nick} не привязана электронная почта. Восстановление невозможно.')
-                                continue
-                else:
-                    print('Хорошо.')
-                    continue
-            else:
+                        print('Пароль должен содержать не менее 6 символов, включая латинские буквы.')
+            elif reg == 'n':
+                print('Хорошо. Возвращаемся в главное меню.')
                 continue
+        else:
+            conn.select_db(sqlDb)
+            if conn.cursor().execute(checker,(nick,passwd)):
+                with conn.cursor() as cur:
+                    cur.execute(checkLenPasswd,nick)
+                    lenPasswd = cur.fetchone()
+                    if re.search('[a-zA-Z]', lenPasswd[0]) == None:
+                        print(f'{nick}, Вам необходимо сменить пароль, т.к. он не соответствует минимальным требованиям (Не содержит латинские буквы).')
+                        while True:
+                            passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
+                            if len(passwd) >= 6 and re.search('[a-zA-Z]', passwd):
+                                check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
+                                if passwd==check:
+                                    if isBlank(passwd):
+                                        print('Пароли не могут быть пустыми. Повторите попытку.')
+                                        continue
+                                    elif isBlank(checkPasswd):
+                                        print('\nПароли не могут быть пустыми. Повторите попытку.\n')
+                                        continue
+                                    else:
+                                        conn.cursor().execute(updatePasswd,(passwd,nick))
+                                        print(f'Смена пароля для пользователя {nick} прошла успешно!\n')
+                                        print('Вам требуется войти в аккаунт.\n')
+                                        conn.commit()
+                                        break
+                                elif passwd!=check:
+                                    print('Пароли не совпадают. Повторите попытку.')
+                                    continue
+                                else:
+                                    print('Неопознанная ошибка.')
+                                    raise SystemError
+                            else:
+                                print('Пароль должен содержать не менее 6 символов, включая латинские буквы.')
+                    elif len(lenPasswd[0]) < 6:
+                        print(f'{nick}, Вам необходимо сменить пароль, т.к. он не соответствует минимальным требованиям (Менее 6 символов).')
+                        while True:
+                            passwd = stdiomask.getpass('Введите Ваш пароль: ', mask='*')
+                            if len(passwd) >= 6 and re.search('[a-zA-Z]', passwd):
+                                check = stdiomask.getpass('Подтвердите Ваш пароль: ', mask = '*')
+                                if passwd==check:
+                                    if isBlank(passwd):
+                                        print('Пароли не могут быть пустыми. Повторите попытку.')
+                                        continue
+                                    elif isBlank(checkPasswd):
+                                        print('\nПароли не могут быть пустыми. Повторите попытку.\n')
+                                        continue
+                                    else:
+                                        conn.cursor().execute(updatePasswd,(passwd,nick))
+                                        print(f'Смена пароля для пользователя {nick} прошла успешно!\n')
+                                        print('Вам требуется войти в аккаунт.\n')
+                                        conn.commit()
+                                        break
+                                elif passwd!=check:
+                                    print('Пароли не совпадают. Повторите попытку.')
+                                    continue
+                                else:
+                                    print('Неопознанная ошибка.')
+                                    raise SystemError
+                            else:
+                                print('Пароль должен содержать не менее 6 символов, включая латинские буквы.')
+                    else:
+                        cur.execute(money, nick)
+                        balance = cur.fetchone()
+                        print(f'\nДобро пожаловать, {nick}!\nВаш баланс: {balance[0]}')
+                        print()
+                        #close connection!
+                        break
+            else:
+                print(f'Неверный пароль для пользователя {nick}. Повторите попытку.')
+                wrongTries += 1
+                if wrongTries >= 3:
+                    resetChoose = input(f'Вы ввели пароль неверно {wrongTries} раз(а). Хотите восстановить? (Y/N): ').lower()
+                    if resetChoose == 'y':
+                        with conn.cursor() as cur:
+                            cur.execute(checkReset, nick)
+                            checkResetNick = cur.fetchone()
+                        if checkResetNick == nick:
+                            print(f'У вас уже есть активный запрос на восстановление пароля для пользователя {nick}.\nПроверьте почту.\n')
+                            continue
+                        else:
+                            with conn.cursor() as cur:
+                                cur.execute(isEmail, nick)
+                                userEmail = cur.fetchone()
+                                if userEmail:
+                                    with conn.cursor() as cur:
+                                        cur.execute(resetCheckPasswd, nick)
+                                        oldPass = cur.fetchone()
+                                        oldPass = oldPass[0]
+                                        userEmail = userEmail[0]
+                                        cur.execute(resetInserter,(nick, oldPass, userEmail))
+                                        conn.commit()
+                                        print(f'Заявка на восстановление пароля для пользователя {nick} оставлена успешно!\nОжидайте письмо на почту в течение 1-го рабочего дня.\n')
+                                        continue
+                                else:
+                                    print(f'У аккаунта {nick} не привязана электронная почта. Восстановление невозможно.')
+                                    continue
+                    else:
+                        print('Хорошо.')
+                        continue
+                else:
+                    continue
+    except pymysql.err.ProgrammingError as pe:
+        pestr = str(pe)
+        pelist = list(pestr.replace(')','').split(', ')) 
+        perr = pelist[1]
+        print(f'Похоже, что-то пошло не по плану.\nPymysql говорит, что: {perr}')
+        if 'userdata' in perr:
+            print('\nЯ знаю, что это за ошибка. Это значит, что в БД не хватает таблицы "userdata".\n')
+        else:
+            print('\nВпервые вижу такую ошибку. Напишите "All" на следующем шаге.\n')
+        recover = input('Хотите попробовать решить это? (Y/N/All): ').lower()
+        if recover == 'y':
+            if 'userdata' in perr:
+                with conn.cursor() as cur:
+                    cur.execute(createUserdata)
+                    conn.commit()
+                    print('Все окей, сейчас должно заработать.\n')
+            else:
+                print('Не сработает. Напишите All в следующий раз.')
+        elif recover == 'all':
+            with conn.cursor() as cur:
+                    cur.execute(createUserdata)
+                    cur.execute(createTopusers)
+                    cur.execute(createEvents)
+                    cur.execute(createGamerules)
+                    cur.execute(createResetemail)
+                    conn.commit()
+                    print('Возможно, это сработает.')
+        else:
+            print('Хорошо. Возвращаемся в главное меню.')
 with conn.cursor() as cur:
     cur.execute(isEmail, nick)
     checkMail = cur.fetchone()
-    if "@" in checkMail[0]:
+    if checkMail[0] != None:
         cur.execute(chooseEvent, randEvent)
         event = cur.fetchone()
         print(f'{nick}, для Вас доступно событие: "{event[0]}"')
@@ -455,8 +507,8 @@ with conn.cursor() as cur:
             elif userChoice == 'addmail':
                 cur.execute(isEmail,nick)
                 mail = cur.fetchone()
-                if "@" in mail[0]:
-                    changeMail = input(f'{nick}, у Вас уже добавлен email. Вы хотите изменить его? (Y/N)').lower()
+                if mail[0] != None:
+                    changeMail = input(f'{nick}, у Вас уже добавлен email. Вы хотите изменить его? (Y/N): ').lower()
                     if changeMail == 'y':
                         newMail = input('Введите Ваш новый email: ').replace(' ','')
                         if isBlank(newMail):
@@ -466,7 +518,7 @@ with conn.cursor() as cur:
                             print('Это не похоже на email. Повторите попытку.')
                             continue
                         else:
-                            commitMail = input(f'Для пользователя {nick} будет изменен email "{mail[0]}". Верно? (Y/N)').lower()
+                            commitMail = input(f'Для пользователя {nick} будет изменен email "{mail[0]}". Верно? (Y/N): ').lower()
                             if commitMail == 'y':
                                 cur.execute(addmail,(newMail,nick))
                                 conn.commit()
@@ -488,7 +540,7 @@ with conn.cursor() as cur:
                         print('Это не похоже на email. Повторите попытку.')
                         continue
                     else:
-                        commitMail = input(f'Для пользователя {nick} будет установлен email "{userMail}". Верно? (Y/N)').lower()
+                        commitMail = input(f'Для пользователя {nick} будет установлен email "{userMail}". Верно? (Y/N): ').lower()
                         if commitMail == 'y':
                             cur.execute(addmail,(userMail,nick))
                             conn.commit()
